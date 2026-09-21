@@ -693,7 +693,7 @@ button.chip{cursor:pointer}
   <!-- HUD -->
   <header id="hud" hidden>
     <button class="hbtn" id="btnPause" aria-label="Pausar" title="Pausar (Esc)"></button>
-    <div class="hud-phase"><small>FASE</small> <b id="hudPhase">1</b><span id="hudTotal">/23</span> <em id="hudTitle"></em></div>
+    <div class="hud-phase"><small id="hudLabel">FASE</small> <b id="hudPhase">1</b><span id="hudTotal">/23</span> <em id="hudTitle"></em></div>
     <div class="hud-lives" id="hudLives" aria-label="Velinhas restantes"></div>
     <div class="hud-score" title="Pontos"><i class="star"></i><b id="hudScore">0</b></div>
     <div class="hud-timer" id="hudTimer" hidden>0:00</div>
@@ -710,6 +710,7 @@ button.chip{cursor:pointer}
       <nav class="menu">
         <button class="btn primary" id="mNew">Novo jogo</button>
         <button class="btn" id="mContinue">Continuar</button>
+        <button class="btn" id="mExtras" hidden>Fases extras ⭐</button>
         <button class="btn" id="mCfg">Configurações</button>
         <button class="btn" id="mHow">Como jogar</button>
       </nav>
@@ -762,6 +763,7 @@ button.chip{cursor:pointer}
         <button class="btn primary" id="pResume">Continuar</button>
         <button class="btn" id="pCfg">Configurações</button>
         <button class="btn" id="pHow">Como jogar</button>
+        <button class="btn ghost" id="pSkip">Pular esta fase (deu problema)</button>
         <button class="btn ghost" id="pMenu">Sair para o menu</button>
       </div>
     </div>
@@ -831,7 +833,8 @@ button.chip{cursor:pointer}
       <p class="story" id="endText"></p>
       <table id="endTable" class="score-table"></table>
       <div class="col-btns">
-        <button class="btn primary" id="endMenu">Menu principal</button>
+        <button class="btn primary" id="endExtras" hidden>Fases extras ⭐</button>
+        <button class="btn" id="endMenu">Menu principal</button>
       </div>
     </div>
   </section>
@@ -859,7 +862,8 @@ button.chip{cursor:pointer}
 'use strict';
 
 /* ---------- utilidades ---------- */
-const TOTAL = 23;                       // total de fases do jogo
+const TOTAL = 23;                       // fases do jogo principal
+const EXTRAS = () => Math.max(0, PHASES.length - TOTAL);   // fases extras (arquivo extras.js, opcional)
 const KEY = 'mansao-dos-espiritos-v1';
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -879,6 +883,8 @@ const mmss = s => { s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) + '
 const defaults = () => ({
   version: 1,
   started: false,
+  skipped: [],                          // fases puladas (sem pontos)
+  extraStarted: false,                  // já entrou nas fases extras?
   currentPhase: 1,
   lives: 3,
   score: 0,
@@ -1168,7 +1174,7 @@ const Game = {
   /* ---------- HUD ---------- */
   updateHUD() {
     const p = this.phase || this.pending;
-    if (p) { $('#hudPhase').textContent = p.id; $('#hudTitle').textContent = p.title; $('#hudTotal').textContent = '/' + TOTAL; }
+    if (p) { const ex = p.id > TOTAL; $('#hudLabel').textContent = ex ? 'EXTRA' : 'FASE'; $('#hudPhase').textContent = ex ? p.id - TOTAL : p.id; $('#hudTitle').textContent = p.title; $('#hudTotal').textContent = '/' + (ex ? EXTRAS() : TOTAL); }
     $('#hudScore').textContent = fmt(gameState.score);
     $('#hudLives').innerHTML = [0, 1, 2].map(i => `<i class="${i < gameState.lives ? '' : 'off'}"></i>`).join('');
   },
@@ -1183,14 +1189,14 @@ const Game = {
 
   openPhase(id) {
     const p = PHASES[id - 1];
-    if (!p) { this.showEnding(); return; }
+    if (!p || (id > TOTAL && !gameState.extraStarted)) { this.showEnding(); return; }   // depois da fase 23 vem o final; as extras são opcionais
     gameState.currentPhase = id; gameState.started = true;
-    if ((id - 1) % 5 === 0) { gameState.checkpoint = { phase: id, score: gameState.score }; gameState.lives = 3; }
+    if ((id - 1) % 5 === 0 || p.checkpoint) { gameState.checkpoint = { phase: id, score: gameState.score }; gameState.lives = 3; }
     save();
     this.pending = p; this.hintState = [null, null, null]; this.active = false; this.phase = null;
     $('#hud').hidden = true;
     const dl = ['', 'Fácil', 'Médio', 'Difícil'][p.difficulty];
-    $('#introKicker').textContent = `Fase ${p.id} de ${TOTAL} · ${(ROOMS[p.room] || ROOMS.hall).name}`;
+    $('#introKicker').textContent = `${p.id > TOTAL ? `Fase extra ${p.id - TOTAL} de ${EXTRAS()}` : `Fase ${p.id} de ${TOTAL}`} · ${(ROOMS[p.room] || ROOMS.hall).name}`;
     $('#introTitle').textContent = p.title; $('#introText').textContent = p.intro; $('#introObj').textContent = p.objective;
     $('#introDiff').textContent = dl; $('#introDiff').className = 'tag d' + p.difficulty; $('#introType').textContent = p.kind || '';
     $('#introType').hidden = !p.kind;
@@ -1204,7 +1210,7 @@ const Game = {
     this.phase = p; this.ctx = makeCtx(p); this.active = true; this.hintState = [null, null, null]; this.setTimer(null);
     this.updateHUD(); this.syncPause(); this.placeSecret(p); $('#btnHint').classList.remove('pulse');
     Clock.after(75000, () => $('#btnHint').classList.add('pulse'), this.ctx);
-    try { p.start(this.ctx); } catch (e) { console.error(e); toast('Ops, algo deu errado nesta fase. Tente reiniciar.'); }
+    try { p.start(this.ctx); } catch (e) { console.error(e); toast('Ops, algo deu errado nesta fase. Você pode pular ela no menu.', 5000); showScreen('pause'); }
   },
   clearStage() { $('#stage').innerHTML = ''; $$('.secret-eye').forEach(e => e.remove()); $('#ghostlayer').innerHTML = ''; $('#whisper').classList.remove('on'); this.setTimer(null); },
   restartPhase() {
@@ -1222,7 +1228,19 @@ const Game = {
     ['pause', 'gameover', 'complete', 'hints', 'settings', 'howto', 'intro', 'ending'].forEach(hideScreen);
     this.clearStage(); $('#hud').hidden = true; setRoom('hall'); save(); this.refreshMenu(); showScreen('title'); this.syncPause();
   },
-  refreshMenu() { const c = $('#mContinue'); c.disabled = !gameState.started; c.textContent = gameState.started ? `Continuar (fase ${gameState.currentPhase})` : 'Continuar'; },
+  refreshMenu() {
+    const c = $('#mContinue'), cp = gameState.currentPhase, mainDone = this.mainDone(), ex = $('#mExtras');
+    c.disabled = !gameState.started;
+    c.textContent = !gameState.started ? 'Continuar' : cp > TOTAL ? (gameState.extraStarted && PHASES[cp - 1] ? `Continuar (extra ${cp - TOTAL})` : 'Ver o final') : `Continuar (fase ${cp})`;
+    ex.hidden = PHASES.length <= TOTAL;                 // só aparece se o arquivo extras.js estiver no site
+    ex.disabled = !mainDone; ex.textContent = mainDone ? 'Fases extras ⭐' : 'Fases extras 🔒'; ex.title = mainDone ? '' : `Termine as ${TOTAL} fases para liberar`;
+  },
+  mainDone() { return gameState.completedPhases.filter(x => x <= TOTAL).length >= TOTAL; },
+  startExtras() {
+    if (!this.mainDone() || PHASES.length <= TOTAL) return;
+    gameState.extraStarted = true; if (gameState.currentPhase <= TOTAL || !PHASES[gameState.currentPhase - 1]) gameState.currentPhase = TOTAL + 1; save();
+    ['ending', 'title'].forEach(hideScreen); this.openPhase(gameState.currentPhase);
+  },
 
   /* ---------- erros, vidas, pontos ---------- */
   onMistake(ctx) {
@@ -1258,24 +1276,33 @@ const Game = {
     if (tb) rows.push(['Bônus de rapidez', tb]); if (lv) rows.push(['Velinhas restantes', lv]); if (perfect) rows.push(['Sem erros!', perfect]); if (extra) rows.push([o.bonusLabel || 'Bônus especial', extra]);
     $('#cTable').innerHTML = rows.map(r => `<tr><td>${r[0]}</td><td>+${r[1]}</td></tr>`).join('') + (pen ? `<tr class="neg"><td>Erros (${ctx.mistakes})</td><td>−${Math.min(pen, base + tb + lv + perfect + extra)}</td></tr>` : '') + `<tr class="tot"><td>Total da fase</td><td>${fmt(total)}</td></tr>`;
     $('#cTitle').textContent = p.title; $('#cMsg').textContent = o.message || p.success || 'Você abriu o caminho!';
-    const last = !PHASES[p.id]; $('#cNext').textContent = last ? 'Continuar' : 'Próxima fase';
+    const last = p.id === TOTAL || !PHASES[p.id]; $('#cNext').textContent = last ? 'Continuar' : 'Próxima fase';
     setTimeout(() => showScreen('complete'), 1100);
   },
   nextPhase() { hideScreen('complete'); Snd.play('click'); this.openPhase(gameState.currentPhase); },
   showEnding() {
-    const s = gameState, done = s.completedPhases.length >= TOTAL;
+    const s = gameState, mainDone = this.mainDone(), nEx = EXTRAS(), exDone = nEx > 0 && s.completedPhases.filter(x => x > TOTAL).length >= nEx;
+    const eyes = s.secrets.filter(x => x <= TOTAL).length;
     /* três finais, conforme o desempenho:  secreto (achou muitos olhinhos) · fuga (poucos erros e dicas) · misterioso */
-    const secret = s.secrets.length >= 12, best = s.stats.mistakes <= 25 && s.hintsUsed <= 6;
-    const F = secret
-      ? ['Final Secreto', 'Os fantasminhas fizeram uma festa!', 'Você achou tantos olhinhos escondidos que os fantasminhas prepararam uma festa surpresa só para você! Teve bolo de abóbora, balões e muita música. Agora você faz parte da turma da Mansão dos Espíritos!']
-      : best
-        ? ['Final da Fuga', 'Você escapou da mansão!', 'O grande portão se abriu e a luz da manhã entrou. Lá de dentro, os fantasminhas acenaram: "Volte para brincar!" Você resolveu quase tudo sem errar e sem muita ajuda. Que craque da matemática!']
-        : ['Final Misterioso', 'A porta se abriu… e agora?', 'Você saiu da mansão, mas ouviu uma risadinha lá atrás. Quando olhou, só viu a lua e uma cartola flutuando… O Barão ainda guarda muitos segredos. Será que existem olhinhos escondidos que você ainda não achou?'];
-    if (done) Snd.play('done');
-    $('#endKicker').textContent = done ? F[0] : 'Faltam portas';
-    $('#endTitle').textContent = done ? F[1] : 'Ainda há portas para abrir';
-    $('#endText').textContent = done ? F[2] : `Você abriu ${s.completedPhases.length} de ${TOTAL} portas. Volte ao menu e continue de onde parou!`;
-    $('#endTable').innerHTML = `<tr><td>Portas abertas</td><td>${s.completedPhases.length} / ${TOTAL}</td></tr><tr><td>Olhinhos secretos</td><td>${s.secrets.length} / ${TOTAL}</td></tr><tr><td>Dicas usadas</td><td>${s.hintsUsed}</td></tr><tr><td>Erros</td><td>${s.stats.mistakes}</td></tr><tr class="tot"><td>Pontuação final</td><td>${fmt(s.score)}</td></tr>`;
+    const secret = eyes >= 12, best = s.stats.mistakes <= 25 && s.hintsUsed <= 6;
+    const F = exDone
+      ? ['Final Extra', 'Mestre da Mansão!', 'Você completou TODAS as fases, até as extras! Os fantasminhas fizeram a maior festa que a mansão já viu, e o Barão prometeu que você sempre será bem-vindo. Parabéns, campeão da matemática!']
+      : secret
+        ? ['Final Secreto', 'Os fantasminhas fizeram uma festa!', 'Você achou tantos olhinhos escondidos que os fantasminhas prepararam uma festa surpresa só para você! Teve bolo de abóbora, balões e muita música. Agora você faz parte da turma da Mansão dos Espíritos!']
+        : best
+          ? ['Final da Fuga', 'Você escapou da mansão!', 'O grande portão se abriu e a luz da manhã entrou. Lá de dentro, os fantasminhas acenaram: "Volte para brincar!" Você resolveu quase tudo sem errar e sem muita ajuda. Que craque da matemática!']
+          : ['Final Misterioso', 'A porta se abriu… e agora?', 'Você saiu da mansão, mas ouviu uma risadinha lá atrás. Quando olhou, só viu a lua e uma cartola flutuando… O Barão ainda guarda muitos segredos. Será que existem olhinhos escondidos que você ainda não achou?'];
+    if (mainDone) Snd.play('done');
+    const mainCount = s.completedPhases.filter(x => x <= TOTAL).length;
+    $('#endKicker').textContent = mainDone ? F[0] : 'Faltam portas';
+    $('#endTitle').textContent = mainDone ? F[1] : 'Ainda há portas para abrir';
+    $('#endText').textContent = mainDone ? F[2] : `Você abriu ${mainCount} de ${TOTAL} portas. Volte ao menu e continue de onde parou!`;
+    let rows = `<tr><td>Portas abertas</td><td>${mainCount} / ${TOTAL}</td></tr>`;
+    if (nEx) rows += `<tr><td>Fases extras</td><td>${s.completedPhases.filter(x => x > TOTAL).length} / ${nEx}</td></tr>`;
+    if (s.skipped.length) rows += `<tr><td>Fases puladas</td><td>${s.skipped.length}</td></tr>`;
+    rows += `<tr><td>Olhinhos secretos</td><td>${eyes} / ${TOTAL}</td></tr><tr><td>Dicas usadas</td><td>${s.hintsUsed}</td></tr><tr><td>Erros</td><td>${s.stats.mistakes}</td></tr><tr class="tot"><td>Pontuação final</td><td>${fmt(s.score)}</td></tr>`;
+    $('#endTable').innerHTML = rows;
+    const be = $('#endExtras'); be.hidden = !(nEx && mainDone && !exDone); be.textContent = s.extraStarted ? 'Continuar as fases extras ⭐' : 'Jogar as 10 fases extras ⭐'.replace('10', nEx);
     $('#hud').hidden = true; hideScreen('title'); showScreen('ending');
   },
 
@@ -1304,6 +1331,18 @@ const Game = {
       box.appendChild(row);
     });
     showScreen('hints'); Snd.play('click');
+  },
+  /** Pula a fase atual (quando ela trava ou dá problema). Conta como concluída, mas sem pontos. */
+  skipPhase() {
+    const p = this.phase; if (!p) return;
+    if (this.ctx) this.ctx._dispose();
+    hideScreen('pause'); this.active = false; this.syncPause();
+    if (!gameState.completedPhases.includes(p.id)) gameState.completedPhases.push(p.id);
+    if (!gameState.skipped.includes(p.id)) gameState.skipped.push(p.id);
+    gameState.currentPhase = p.id + 1; save();
+    this.setTimer(null); this.clearStage(); this.phase = null;
+    toast('Fase pulada! Vamos para a próxima.', 2600); Snd.play('door');
+    this.openPhase(gameState.currentPhase);
   },
   togglePause() { if (!this.active) return; if (open.has('pause')) hideScreen('pause'); else { showScreen('pause'); Snd.play('click'); } }
 };
@@ -1369,9 +1408,9 @@ function boot() {
   on('sClose', () => { save(); hideScreen('settings'); }); on('hwClose', () => hideScreen('howto')); on('hClose', () => hideScreen('hints'));
   on('introGo', () => Game.enterPhase()); on('cNext', () => Game.nextPhase());
   on('goRetry', () => Game.restartPhase()); on('goCheck', () => Game.toCheckpoint()); on('goMenu', () => { hideScreen('gameover'); Game.toMenu(); });
-  on('pResume', () => hideScreen('pause')); on('pCfg', () => showScreen('settings')); on('pHow', () => showScreen('howto')); on('pMenu', () => askConfirm('Sair para o menu? Seu progresso das fases concluídas está salvo.', () => { hideScreen('pause'); Game.toMenu(); }));
+  on('pResume', () => hideScreen('pause')); on('pCfg', () => showScreen('settings')); on('pHow', () => showScreen('howto')); on('pSkip', () => askConfirm('Pular esta fase? Ela conta como concluída, mas você não ganha pontos nela. Use só se a fase travou ou deu erro.', () => Game.skipPhase())); on('pMenu', () => askConfirm('Sair para o menu? Seu progresso das fases concluídas está salvo.', () => { hideScreen('pause'); Game.toMenu(); }));
   on('btnPause', () => Game.togglePause()); on('btnHint', () => Game.openHints()); on('btnCfg', () => showScreen('settings'));
-  on('endMenu', () => { hideScreen('ending'); Game.toMenu(); });
+  on('endMenu', () => { hideScreen('ending'); Game.toMenu(); }); on('endExtras', () => Game.startExtras()); on('mExtras', () => Game.startExtras());
   on('sReset', () => askConfirm('Apagar todo o seu progresso? Isso não pode ser desfeito.', () => { resetProgress(); applySettings(); Game.refreshMenu(); toast('Progresso apagado.'); }));
   $('#sVol').oninput = e => { gameState.settings.volume = +e.target.value; Snd.apply(); };
   $('#sAmb').oninput = e => { gameState.settings.ambient = +e.target.value; Snd.apply(); };
@@ -1390,7 +1429,7 @@ function boot() {
   Clock.start(); Game.syncPause(); showScreen('title');
   // atalho para testes: index.html?fase=5
   const q = new URLSearchParams(location.search).get('fase');
-  if (q && PHASES[+q - 1]) { if (!gameState.started) { gameState.started = true; } hideScreen('title'); Game.openPhase(+q); }
+  if (q && PHASES[+q - 1]) { if (!gameState.started) { gameState.started = true; } if (+q > TOTAL) gameState.extraStarted = true; hideScreen('title'); Game.openPhase(+q); }
 }
 
 window.Mansao = { phase: def => { PHASES[def.id - 1] = def; }, boot, Game, Snd, Ghosts, clock: Clock, GHOST_TYPES, icon, ICON_NAMES, gameState: () => gameState, PHASES, ROOMS,
