@@ -727,7 +727,7 @@ button.chip{cursor:pointer}
       <div class="objective"><b>Objetivo:</b> <span id="introObj"></span></div>
       <div class="meta"><span id="introDiff" class="tag"></span><span id="introType" class="tag"></span></div>
       <button class="btn primary" id="introGo">Entrar</button>
-      <p class="tiny" style="margin:.8em 0 0">Aperte <kbd>Esc</kbd> (ou <kbd>P</kbd>) para abrir o menu</p>
+      <p class="tiny" style="margin:.8em 0 0"><kbd>Esc</kbd> menu · <kbd>P</kbd> pular fase · <kbd>R</kbd> voltar à fase anterior</p>
     </div>
   </section>
 
@@ -764,7 +764,8 @@ button.chip{cursor:pointer}
         <button class="btn primary" id="pResume">Continuar</button>
         <button class="btn" id="pCfg">Configurações</button>
         <button class="btn" id="pHow">Como jogar</button>
-        <button class="btn ghost" id="pSkip">Pular esta fase (deu problema)</button>
+        <button class="btn ghost" id="pBack">Voltar à fase anterior (R)</button>
+        <button class="btn ghost" id="pSkip">Pular esta fase (P)</button>
         <button class="btn ghost" id="pMenu">Sair para o menu</button>
       </div>
     </div>
@@ -808,7 +809,7 @@ button.chip{cursor:pointer}
         <li><b>Dicas:</b> aperte <b>Dica</b> (ou a tecla H). O Fifi dá até 3 ajudas, cada uma custa pontos.</li>
         <li><b>Jeitos de jogar:</b> toque, dê 2 cliques, aperte várias vezes, <b>segure</b> um botão, <b>arraste</b> objetos, <b>gire</b> cadeados e cofres, digite respostas e siga fantasminhas com a lanterna.</li>
         <li><b>Segredos:</b> em cada sala existe um olhinho escondido. Ache-o e ganhe pontos extras!</li>
-        <li><b>Teclas:</b> <kbd>Esc</kbd> pausa • <kbd>H</kbd> dica • setas/WASD no labirinto. No celular, toque na tela.</li>
+        <li><b>Teclas:</b> <kbd>Esc</kbd> menu de pausa • <kbd>H</kbd> dica • <kbd>P</kbd> pula a fase • <kbd>R</kbd> volta à fase anterior • setas/WASD no labirinto. No celular, toque na tela.</li>
         <li>Seu progresso é salvo sozinho. Pode fechar o navegador e continuar depois.</li>
       </ul>
       <button class="btn primary" id="hwClose">Entendi!</button>
@@ -1335,15 +1336,32 @@ const Game = {
   },
   /** Pula a fase atual (quando ela trava ou dá problema). Conta como concluída, mas sem pontos. */
   skipPhase() {
-    const p = this.phase; if (!p) return;
-    if (this.ctx) this.ctx._dispose();
-    hideScreen('pause'); this.active = false; this.syncPause();
+    const p = this.phase || this.pending; if (!p) return;
+    this.leavePhase();
     if (!gameState.completedPhases.includes(p.id)) gameState.completedPhases.push(p.id);
     if (!gameState.skipped.includes(p.id)) gameState.skipped.push(p.id);
     gameState.currentPhase = p.id + 1; save();
-    this.setTimer(null); this.clearStage(); this.phase = null;
-    toast('Fase pulada! Vamos para a próxima.', 2600); Snd.play('door');
+    toast('Fase pulada! (aperte R para voltar)', 2800); Snd.play('door');
     this.openPhase(gameState.currentPhase);
+  },
+  /** volta para a fase anterior (tecla R) */
+  previousPhase() {
+    const p = this.phase || this.pending; if (!p) return;
+    if (p.id <= 1) { toast('Esta já é a primeira fase.', 2200); return; }
+    this.leavePhase(); toast('Voltando para a fase ' + (p.id - 1) + '…', 2200); Snd.play('door');
+    this.openPhase(p.id - 1);
+  },
+  /** encerra a fase atual (timers, telas e cena) sem mexer no progresso */
+  leavePhase() {
+    if (this.ctx) this.ctx._dispose();
+    ['pause', 'intro', 'complete', 'gameover', 'hints'].forEach(hideScreen);
+    this.active = false; this.syncPause(); this.setTimer(null); this.clearStage(); this.phase = null;
+  },
+  /** atalhos de teclado: P = pular · R = voltar */
+  hotkey(k) {
+    if (['confirm', 'settings', 'howto', 'hints', 'pause', 'title', 'ending'].some(id => open.has(id))) return;
+    if (!(this.phase || this.pending)) return;
+    if (k === 'p') { if (open.has('complete')) this.nextPhase(); else this.skipPhase(); } else this.previousPhase();
   },
   togglePause() {
     if (open.has('pause')) { hideScreen('pause'); return; }
@@ -1415,7 +1433,7 @@ function boot() {
   on('sClose', () => { save(); hideScreen('settings'); }); on('hwClose', () => hideScreen('howto')); on('hClose', () => hideScreen('hints'));
   on('introGo', () => Game.enterPhase()); on('cNext', () => Game.nextPhase());
   on('goRetry', () => Game.restartPhase()); on('goCheck', () => Game.toCheckpoint()); on('goMenu', () => { hideScreen('gameover'); Game.toMenu(); });
-  on('pResume', () => hideScreen('pause')); on('pCfg', () => showScreen('settings')); on('pHow', () => showScreen('howto')); on('pSkip', () => askConfirm('Pular esta fase? Ela conta como concluída, mas você não ganha pontos nela. Use só se a fase travou ou deu erro.', () => Game.skipPhase())); on('pMenu', () => askConfirm('Sair para o menu? Seu progresso das fases concluídas está salvo.', () => { hideScreen('pause'); Game.toMenu(); }));
+  on('pResume', () => hideScreen('pause')); on('pCfg', () => showScreen('settings')); on('pHow', () => showScreen('howto')); on('pBack', () => Game.previousPhase()); on('pSkip', () => askConfirm('Pular esta fase? Ela conta como concluída, mas você não ganha pontos nela. Use só se a fase travou ou deu erro.', () => Game.skipPhase())); on('pMenu', () => askConfirm('Sair para o menu? Seu progresso das fases concluídas está salvo.', () => { hideScreen('pause'); Game.toMenu(); }));
   on('btnPause', () => Game.togglePause()); on('btnHint', () => Game.openHints()); on('btnCfg', () => showScreen('settings'));
   on('endMenu', () => { hideScreen('ending'); Game.toMenu(); }); on('endExtras', () => Game.startExtras()); on('mExtras', () => Game.startExtras());
   on('sReset', () => askConfirm('Apagar todo o seu progresso? Isso não pode ser desfeito.', () => { resetProgress(); applySettings(); Game.refreshMenu(); toast('Progresso apagado.'); }));
@@ -1428,7 +1446,7 @@ function boot() {
     if (e.key === 'Escape') {
       const top = ['confirm', 'settings', 'howto', 'hints'].find(id => open.has(id));
       if (top) hideScreen(top); else Game.togglePause();
-    } else if ((e.key === 'p' || e.key === 'P') && !/INPUT|TEXTAREA/.test((document.activeElement || {}).tagName || '') && !['confirm', 'settings', 'howto', 'hints'].some(id => open.has(id))) Game.togglePause();
+    } else if (/^[pPrR]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey && !/INPUT|TEXTAREA/.test((document.activeElement || {}).tagName || '')) Game.hotkey(e.key.toLowerCase());
     else if ((e.key === 'h' || e.key === 'H') && Game.active && ![...open].some(id => BLOCKING.has(id)) && !/INPUT|TEXTAREA/.test((document.activeElement || {}).tagName || '')) Game.openHints();
   });
   document.addEventListener('visibilitychange', () => Game.syncPause());
