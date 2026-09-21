@@ -727,6 +727,7 @@ button.chip{cursor:pointer}
       <div class="objective"><b>Objetivo:</b> <span id="introObj"></span></div>
       <div class="meta"><span id="introDiff" class="tag"></span><span id="introType" class="tag"></span></div>
       <button class="btn primary" id="introGo">Entrar</button>
+      <p class="tiny" style="margin:.8em 0 0">Aperte <kbd>Esc</kbd> (ou <kbd>P</kbd>) para abrir o menu</p>
     </div>
   </section>
 
@@ -1210,7 +1211,7 @@ const Game = {
     this.phase = p; this.ctx = makeCtx(p); this.active = true; this.hintState = [null, null, null]; this.setTimer(null);
     this.updateHUD(); this.syncPause(); this.placeSecret(p); $('#btnHint').classList.remove('pulse');
     Clock.after(75000, () => $('#btnHint').classList.add('pulse'), this.ctx);
-    try { p.start(this.ctx); } catch (e) { console.error(e); toast('Ops, algo deu errado nesta fase. Você pode pular ela no menu.', 5000); showScreen('pause'); }
+    try { p.start(this.ctx); } catch (e) { console.error(e); toast('Ops, algo deu errado nesta fase. Você pode pular ela no menu.', 5000); $('#pSkip').hidden = false; showScreen('pause'); }
   },
   clearStage() { $('#stage').innerHTML = ''; $$('.secret-eye').forEach(e => e.remove()); $('#ghostlayer').innerHTML = ''; $('#whisper').classList.remove('on'); this.setTimer(null); },
   restartPhase() {
@@ -1344,7 +1345,13 @@ const Game = {
     toast('Fase pulada! Vamos para a próxima.', 2600); Snd.play('door');
     this.openPhase(gameState.currentPhase);
   },
-  togglePause() { if (!this.active) return; if (open.has('pause')) hideScreen('pause'); else { showScreen('pause'); Snd.play('click'); } }
+  togglePause() {
+    if (open.has('pause')) { hideScreen('pause'); return; }
+    const inFlow = ['intro', 'complete', 'gameover'].some(id => open.has(id));      // telas entre uma fase e outra
+    if (!this.active && !inFlow) return;
+    $('#pSkip').hidden = !this.active;                                                // só dá para pular uma fase que está rodando
+    showScreen('pause'); Snd.play('click');
+  }
 };
 
 /* ---------- contexto entregue a cada fase ---------- */
@@ -1421,7 +1428,8 @@ function boot() {
     if (e.key === 'Escape') {
       const top = ['confirm', 'settings', 'howto', 'hints'].find(id => open.has(id));
       if (top) hideScreen(top); else Game.togglePause();
-    } else if ((e.key === 'h' || e.key === 'H') && Game.active && ![...open].some(id => BLOCKING.has(id)) && !/INPUT|TEXTAREA/.test((document.activeElement || {}).tagName || '')) Game.openHints();
+    } else if ((e.key === 'p' || e.key === 'P') && !/INPUT|TEXTAREA/.test((document.activeElement || {}).tagName || '') && !['confirm', 'settings', 'howto', 'hints'].some(id => open.has(id))) Game.togglePause();
+    else if ((e.key === 'h' || e.key === 'H') && Game.active && ![...open].some(id => BLOCKING.has(id)) && !/INPUT|TEXTAREA/.test((document.activeElement || {}).tagName || '')) Game.openHints();
   });
   document.addEventListener('visibilitychange', () => Game.syncPause());
   addEventListener('beforeunload', save);
