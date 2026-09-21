@@ -169,9 +169,9 @@ const multietapas = [
   () => { const x = pick(NOMES), a = ri(10, 40), b = ri(10, 40), p = ri(8, a + b - 5);
     return numPack('multietapas', 3, `${x} ganhou ${R(a * 100)} da avó e ${R(b * 100)} do tio. Depois comprou um livro de ${R(p * 100)}. Quanto sobrou?`, (a + b - p) * 100, [(a + b) * 100, (a + b + p) * 100, Math.abs(a - b) * 100, (a + b - p) * 100 + 500],
       '1º: some o dinheiro recebido (+). 2º: tire o preço do livro (−).', `${R(a * 100)} + ${R(b * 100)} = ${R((a + b) * 100)}; ${R((a + b) * 100)} − ${R(p * 100)} = ${R((a + b - p) * 100)}`, R, 100); },
-  () => { const x = pick(NOMES); let a, b, m, c; do { m = ri(6, 9); a = ri(4, 10); b = ri(4, 10); c = 3 * m - a - b; } while (c < 3 || c > 10);
-    return numPack('multietapas', 3, `${x} tirou ${a} e ${b} nas duas primeiras provas. Que nota precisa tirar na terceira prova para a média das três ser ${m}?`, c, [m, a + b, 3 * m, c + 1, c - 1],
-      'Para a média ser ' + m + ', a soma das 3 notas precisa ser 3 × ' + m + '. Depois veja quanto falta.', `3 × ${m} = ${3 * m}; ${3 * m} − ${a} − ${b} = ${c}`); },
+  () => { const [x, y] = dois(), m = ri(5, 8), v = valores(3, m, 3, 10), s = v.reduce((p, q) => p + q, 0), mb = m + ri(1, Math.min(3, 10 - m));
+    return numPack('multietapas', 3, `${x} tirou ${lista(v)} em três provas. A média de ${y} foi ${mb}. Quantos pontos a média de ${y} é maior que a de ${x}?`, mb - m, [mb, m, mb + m, mb - m + 1, mb - m + 2],
+      '1º: calcule a média de ' + x + ' (some e divida por 3). 2º: subtraia as duas médias.', `${v.join(' + ')} = ${s}; ${s} ÷ 3 = ${m}; ${mb} − ${m} = ${mb - m}`); },
   () => { const F = pick([8, 12]), [x, y] = dois(), a = ri(1, F / 2 - 1), b = ri(1, F / 2 - 1);
     return txtPack('multietapas', 3, `Uma pizza tem ${F} fatias. ${x} comeu ${a} fatias e ${y} comeu ${b} fatias. Que fração da pizza sobrou?`, `${F - a - b}/${F}`,
       [`${a + b}/${F}`, `${F - a}/${F}`, `${F - a - b}/${a + b}`, `${F - b}/${F}`], ['1/2', '1/4', '3/4', '2/3'],
