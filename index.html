@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0716">
+<title>A Mansão dos Espíritos</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="game" class="theme-hall">
+
+  <!-- Sala 3D em CSS -->
+  <div id="room" aria-hidden="true">
+    <div id="cube">
+      <div class="face back"><div id="propsBack"></div></div>
+      <div class="face left"><div id="propsL"></div></div>
+      <div class="face right"><div id="propsR"></div></div>
+      <div class="face floor"></div>
+      <div class="face ceil"></div>
+    </div>
+  </div>
+  <div id="fog" aria-hidden="true"><i></i><i></i></div>
+  <div id="dust" aria-hidden="true"></div>
+  <div id="fore" aria-hidden="true"><i class="sheet s1"></i><i class="sheet s2"></i></div>
+
+  <!-- Conteúdo da fase -->
+  <main id="stage"></main>
+  <div id="whisper" aria-live="polite"></div>
+
+  <!-- Efeitos -->
+  <div id="fx-vignette" aria-hidden="true"></div>
+  <div id="fx-hurt" aria-hidden="true"></div>
+  <div id="fx-flash" aria-hidden="true"></div>
+  <div id="ghostlayer" aria-hidden="true"></div>
+
+  <!-- HUD -->
+  <header id="hud" hidden>
+    <button class="hbtn" id="btnPause" aria-label="Pausar" title="Pausar (Esc)"></button>
+    <div class="hud-phase"><small>FASE</small> <b id="hudPhase">1</b><span>/30</span> <em id="hudTitle"></em></div>
+    <div class="hud-lives" id="hudLives" aria-label="Velinhas restantes"></div>
+    <div class="hud-score" title="Pontos"><i class="star"></i><b id="hudScore">0</b></div>
+    <div class="hud-timer" id="hudTimer" hidden>0:00</div>
+    <button class="hbtn hint" id="btnHint" title="Pedir dica ao Fifi (H)"><span></span>Dica</button>
+    <button class="hbtn" id="btnCfg" aria-label="Configurações" title="Configurações"></button>
+  </header>
+
+  <!-- TELA INICIAL -->
+  <section id="title" class="screen clear">
+    <div class="title-box">
+      <p class="pre">o jogo de escape</p>
+      <h1 class="title-h"><span>A Mansão</span><span>dos Espíritos</span></h1>
+      <p class="sub">Abra as portas, resolva os enigmas e faça amizade com os fantasminhas!</p>
+      <nav class="menu">
+        <button class="btn primary" id="mNew">Novo jogo</button>
+        <button class="btn" id="mContinue">Continuar</button>
+        <button class="btn" id="mCfg">Configurações</button>
+        <button class="btn" id="mHow">Como jogar</button>
+      </nav>
+      <p class="tiny">Use fones de ouvido para sentir melhor a mansão 🎧</p>
+    </div>
+  </section>
+
+  <!-- INTRODUÇÃO DA FASE -->
+  <section id="intro" class="screen" hidden>
+    <div class="card intro">
+      <div class="kicker" id="introKicker"></div>
+      <h2 id="introTitle"></h2>
+      <p id="introText" class="story"></p>
+      <div class="objective"><b>Objetivo:</b> <span id="introObj"></span></div>
+      <div class="meta"><span id="introDiff" class="tag"></span><span id="introType" class="tag"></span></div>
+      <button class="btn primary" id="introGo">Entrar</button>
+    </div>
+  </section>
+
+  <!-- FASE CONCLUÍDA -->
+  <section id="complete" class="screen" hidden>
+    <div class="card">
+      <div class="kicker good">Fase concluída!</div>
+      <h2 id="cTitle"></h2>
+      <p id="cMsg" class="story"></p>
+      <table id="cTable" class="score-table"></table>
+      <button class="btn primary" id="cNext">Próxima fase</button>
+    </div>
+  </section>
+
+  <!-- DERROTA -->
+  <section id="gameover" class="screen" hidden>
+    <div class="card">
+      <div class="kicker">As velinhas se apagaram…</div>
+      <h2>Ops! Foi por pouco!</h2>
+      <p class="story" id="goText">Os fantasminhas riram, mas não desista. Respire fundo e tente de novo — você não perdeu seu progresso!</p>
+      <div class="col-btns">
+        <button class="btn primary" id="goRetry">Tentar a fase de novo</button>
+        <button class="btn" id="goCheck">Voltar ao checkpoint</button>
+        <button class="btn ghost" id="goMenu">Menu principal</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- PAUSA -->
+  <section id="pause" class="screen" hidden>
+    <div class="card">
+      <h2>Jogo pausado</h2>
+      <div class="col-btns">
+        <button class="btn primary" id="pResume">Continuar</button>
+        <button class="btn" id="pCfg">Configurações</button>
+        <button class="btn" id="pHow">Como jogar</button>
+        <button class="btn ghost" id="pMenu">Sair para o menu</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- DICAS -->
+  <section id="hints" class="screen" hidden>
+    <div class="card">
+      <div class="kicker">Fifi, o fantasminha amigo, sussurra…</div>
+      <h2>Precisa de ajuda?</h2>
+      <p class="tiny">Cada dica custa pontos, mas você nunca fica preso!</p>
+      <div id="hintList"></div>
+      <button class="btn" id="hClose">Fechar</button>
+    </div>
+  </section>
+
+  <!-- CONFIGURAÇÕES -->
+  <section id="settings" class="screen" hidden>
+    <div class="card">
+      <h2>Configurações</h2>
+      <label class="row-set">Volume geral <input type="range" id="sVol" min="0" max="1" step="0.05"></label>
+      <label class="row-set">Sons ambiente <input type="range" id="sAmb" min="0" max="1" step="0.05"></label>
+      <label class="row-set">Efeitos sonoros <input type="range" id="sSfx" min="0" max="1" step="0.05"></label>
+      <label class="row-check"><input type="checkbox" id="sFx"> Reduzir tremores, sustos e luzes piscando</label>
+      <div class="col-btns">
+        <button class="btn ghost" id="sReset">Apagar meu progresso</button>
+        <button class="btn primary" id="sClose">Fechar</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMO JOGAR -->
+  <section id="howto" class="screen" hidden>
+    <div class="card wide">
+      <h2>Como jogar</h2>
+      <ul class="how">
+        <li><b>Objetivo:</b> você acordou numa mansão mágica com todas as portas trancadas. Resolva o desafio de cada sala para abrir a próxima porta.</li>
+        <li><b>Cada fase é diferente:</b> clicar, observar, memorizar, digitar, resolver problemas de matemática e até caçar fantasminhas.</li>
+        <li><b>Velinhas:</b> você tem 3. Alguns erros apagam uma velinha. Se todas se apagarem, você pode tentar de novo ou voltar ao checkpoint.</li>
+        <li><b>Pontos:</b> ganhe pontos por acertar, ser rápido e não errar. Os pontos nunca impedem você de avançar.</li>
+        <li><b>Dicas:</b> aperte <b>Dica</b> (ou a tecla H). O Fifi dá até 3 ajudas, cada uma custa pontos.</li>
+        <li><b>Segredos:</b> em cada sala existe um olhinho escondido. Ache-o e ganhe pontos extras!</li>
+        <li><b>Teclas:</b> <kbd>Esc</kbd> pausa • <kbd>H</kbd> dica • setas/WASD no labirinto. No celular, toque na tela.</li>
+        <li>Seu progresso é salvo sozinho. Pode fechar o navegador e continuar depois.</li>
+      </ul>
+      <button class="btn primary" id="hwClose">Entendi!</button>
+    </div>
+  </section>
+
+  <!-- CONFIRMAÇÃO -->
+  <section id="confirm" class="screen" hidden>
+    <div class="card">
+      <p class="story" id="cfText"></p>
+      <div class="col-btns">
+        <button class="btn primary" id="cfYes">Sim</button>
+        <button class="btn" id="cfNo">Não</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- FIM DA DEMONSTRAÇÃO / FINAL -->
+  <section id="ending" class="screen" hidden>
+    <div class="card wide">
+      <div class="kicker" id="endKicker"></div>
+      <h2 id="endTitle"></h2>
+      <p class="story" id="endText"></p>
+      <table id="endTable" class="score-table"></table>
+      <div class="col-btns">
+        <button class="btn primary" id="endMenu">Menu principal</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- TRANSIÇÃO ENTRE SALAS -->
+  <div id="trans" aria-hidden="true">
+    <div class="door-l"></div><div class="door-r"></div><div class="door-light"></div>
+    <div class="tunnel"><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="steps-lines"></div>
+    <p id="transText"></p>
+  </div>
+
+  <div id="toast" role="status"></div>
+</div>
+
+<script src="game.js"></script>
+<script src="conteudo/banco-matematica.js"></script>
+<script src="fases/fases-01-08.js"></script>
+<script>Mansao.boot();</script>
+</body>
+</html>
