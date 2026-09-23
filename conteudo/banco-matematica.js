@@ -5,11 +5,10 @@
      mult-div     Multiplicação e divisão (totais, partes iguais, nº de grupos)
      dinheiro     Sistema monetário (mesada, cinema, brinquedos, troco)
      fracoes      Noção de fração (pizza, bolo, fração de uma quantidade)
-     media        Média simples (notas de provas, páginas lidas)
      multietapas  Problemas com mais de uma operação
    Cada problema = { tema, nivel, q, a, w:[3 erradas], dica, sol }
      nivel: 1 fácil · 2 médio · 3 difícil
-   Uso nas fases:  Mansao.Banco.plano([['fracoes',2],['media',2]])  → lista de problemas
+   Uso nas fases:  Mansao.Banco.plano([['fracoes',2],['dinheiro',2]])  → lista de problemas
                    Mansao.Banco.gerar('dinheiro')                   → 1 problema
    ===================================================================== */
 (function () {
@@ -68,13 +67,13 @@ const multDiv = [
   () => { const x = pick(NOMES), a = ri(8, 25), b = ri(5, 12);
     return numPack('mult-div', 1, `${x} estuda ${a} páginas por dia. Quantas páginas estuda em ${b} dias?`, a * b, [a + b, a * b + a, a * b - a, a * b + 10],
       'Mesma quantidade em cada dia: multiplique pelo número de dias.', `${a} × ${b} = ${a * b}`); },
-  () => { const n = ri(3, 9), k = ri(4, 12), t = n * k;
+  () => { const n = ri(3, 9), k = ri(4, 10), t = n * k;
     return numPack('mult-div', 1, `${t} chocolates serão divididos igualmente entre ${n} amigos. Quantos chocolates cada amigo recebe?`, k, [k + 1, k - 1, t - n, n + k, k + 2],
       'Repartir em partes iguais pede uma divisão (÷).', `${t} ÷ ${n} = ${k}`); },
-  () => { const n = ri(4, 12), k = ri(5, 12), t = n * k;
+  () => { const n = ri(4, 10), k = ri(5, 10), t = n * k;
     return numPack('mult-div', 2, `Um pacote de figurinhas tem ${k} figurinhas. Quantos pacotes são necessários para juntar ${t} figurinhas?`, n, [n + 1, n - 1, t - k, n + 2],
       'Quantos grupos de ' + k + ' cabem em ' + t + '? Use a divisão.', `${t} ÷ ${k} = ${n}`); },
-  () => { const x = pick(NOMES), k = ri(8, 25), n = ri(4, 12), t = k * n;
+  () => { const x = pick(NOMES), k = ri(4, 10), n = ri(4, 10), t = k * n;
     return numPack('mult-div', 2, `Um livro tem ${t} páginas. Lendo ${k} páginas por dia, em quantos dias ${x} termina o livro?`, n, [n + 1, n - 1, t - k, n + 2],
       'Total de páginas ÷ páginas lidas por dia = número de dias.', `${t} ÷ ${k} = ${n}`); },
   () => { const a = ri(4, 9), b = ri(6, 12);
@@ -162,21 +161,18 @@ const multietapas = [
   () => { const a = ri(30, 50), b = ri(5, 20), c = ri(3, 15);
     return numPack('multietapas', 3, `Um ônibus saiu com ${a} passageiros. No primeiro ponto, desceram ${b} e subiram ${c}. Quantos passageiros ficaram no ônibus?`, a - b + c, [a - b - c, a + b + c, a - b, a + b - c],
       'Quem desce sai (−); quem sobe entra (+).', `${a} − ${b} = ${a - b}; ${a - b} + ${c} = ${a - b + c}`); },
-  () => { let n, k, t, ds; do { n = ri(3, 8); k = ri(6, 12); t = n * k; ds = []; for (let d = 2; d <= 12; d++) if (t % d === 0 && d !== n && d !== k) ds.push(d); } while (!ds.length);
+  () => { let n, k, t, ds; do { n = ri(2, 6); k = ri(2, 6); t = n * k; ds = []; for (let d = 2; d <= 10; d++) if (t % d === 0 && t / d <= 10 && d !== n && d !== k) ds.push(d); } while (!ds.length);
     const p = pick(ds);
     return numPack('multietapas', 3, `${n} caixas com ${k} bombons cada foram divididas igualmente entre ${p} fantasminhas. Quantos bombons cada fantasminha recebeu?`, t / p, [t, k, t / p + 1, t / p - 1, n + k],
       '1º: quantos bombons há ao todo (×). 2º: reparta entre os fantasminhas (÷).', `${n} × ${k} = ${t}; ${t} ÷ ${p} = ${t / p}`); },
   () => { const x = pick(NOMES), a = ri(10, 40), b = ri(10, 40), p = ri(8, a + b - 5);
     return numPack('multietapas', 3, `${x} ganhou ${R(a * 100)} da avó e ${R(b * 100)} do tio. Depois comprou um livro de ${R(p * 100)}. Quanto sobrou?`, (a + b - p) * 100, [(a + b) * 100, (a + b + p) * 100, Math.abs(a - b) * 100, (a + b - p) * 100 + 500],
       '1º: some o dinheiro recebido (+). 2º: tire o preço do livro (−).', `${R(a * 100)} + ${R(b * 100)} = ${R((a + b) * 100)}; ${R((a + b) * 100)} − ${R(p * 100)} = ${R((a + b - p) * 100)}`, R, 100); },
-  () => { const [x, y] = dois(), m = ri(5, 8), v = valores(3, m, 3, 10), s = v.reduce((p, q) => p + q, 0), mb = m + ri(1, Math.min(3, 10 - m));
-    return numPack('multietapas', 3, `${x} tirou ${lista(v)} em três provas. A média de ${y} foi ${mb}. Quantos pontos a média de ${y} é maior que a de ${x}?`, mb - m, [mb, m, mb + m, mb - m + 1, mb - m + 2],
-      '1º: calcule a média de ' + x + ' (some e divida por 3). 2º: subtraia as duas médias.', `${v.join(' + ')} = ${s}; ${s} ÷ 3 = ${m}; ${mb} − ${m} = ${mb - m}`); },
   () => { const F = pick([8, 12]), [x, y] = dois(), a = ri(1, F / 2 - 1), b = ri(1, F / 2 - 1);
     return txtPack('multietapas', 3, `Uma pizza tem ${F} fatias. ${x} comeu ${a} fatias e ${y} comeu ${b} fatias. Que fração da pizza sobrou?`, `${F - a - b}/${F}`,
       [`${a + b}/${F}`, `${F - a}/${F}`, `${F - a - b}/${a + b}`, `${F - b}/${F}`], ['1/2', '1/4', '3/4', '2/3'],
       '1º: quantas fatias foram comidas (+). 2º: quantas sobraram (−). 3º: escreva sobras/total.', `${a} + ${b} = ${a + b}; ${F} − ${a + b} = ${F - a - b} → ${F - a - b}/${F}`); },
-  () => { const x = pick(NOMES), k = ri(8, 20), n = ri(3, 9), A = ri(20, 60), T = A + k * n;
+  () => { const x = pick(NOMES), k = ri(4, 10), n = ri(3, 9), A = ri(20, 60), T = A + k * n;
     return numPack('multietapas', 3, `Um livro tem ${T} páginas. ${x} já leu ${A}. Lendo ${k} páginas por dia, em quantos dias termina o livro?`, n, [n + 1, n - 1, Math.floor(T / k), Math.floor(A / k) + n, n + 2],
       '1º: quantas páginas faltam (−). 2º: divida pelo que lê por dia (÷).', `${T} − ${A} = ${T - A}; ${T - A} ÷ ${k} = ${n}`); },
   () => { const a = ri(6, 12), b = ri(3, 6), c = ri(4, 15);
@@ -190,7 +186,7 @@ const multietapas = [
 /* ---------------------------------------------------------------------
    API
    --------------------------------------------------------------------- */
-const TEMAS = { 'soma-sub': somaSub, 'mult-div': multDiv, dinheiro, fracoes, media, multietapas };
+const TEMAS = { 'soma-sub': somaSub, 'mult-div': multDiv, dinheiro, fracoes, multietapas };   // 'media' retirado a pedido (lista 'media' fica guardada acima, sem uso)
 const NOMES_TEMAS = { 'soma-sub': 'Adição e subtração', 'mult-div': 'Multiplicação e divisão', dinheiro: 'Dinheiro', fracoes: 'Frações', media: 'Média', multietapas: 'Várias etapas' };
 const gerar = tema => pick(TEMAS[tema])();
 /** plano([['fracoes',2],['media',2]]) → lista embaralhada, sem enunciados repetidos */
@@ -199,7 +195,7 @@ function plano(pares) {
   for (const [tema, n] of pares) for (let i = 0; i < n; i++) { let p; for (let t = 0; t < 40; t++) { p = gerar(tema); if (!seen.has(p.q)) break; } seen.add(p.q); out.push(p); }
   return shuffle(out);
 }
-const api = { gerar, plano, temas: Object.keys(TEMAS), nomes: NOMES_TEMAS, N, R };
+const api = { _h: { ri, pick, shuffle, NOMES, lista, valores, dois, N, R }, gerar, plano, temas: Object.keys(TEMAS), nomes: NOMES_TEMAS, N, R };
 const root = typeof window !== 'undefined' ? window : globalThis;
 (root.Mansao = root.Mansao || {}).Banco = api;
 })();

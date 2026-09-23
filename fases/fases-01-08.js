@@ -95,8 +95,8 @@ M.phase({
    FASE 2 — O CÓDIGO DO RELÓGIO
    ===================================================================== */
 M.phase({
-  id: 2, title: 'O Código do Relógio', room: 'lounge', transition: 'door', difficulty: 1, kind: 'Observação e código', par: 120,
-  intro: 'A porta do salão rangeu e você entrou na Sala de Estar. No canto, um relógio muito antigo está parado. Um bilhete diz que ele guarda o código da próxima porta.',
+  id: 2, title: 'O Código do Relógio', room: 'lounge', transition: 'fade', transitionText: 'Você abre os olhos…', difficulty: 1, kind: 'Observação e código', par: 120,
+  intro: 'Você acorda no chão de uma mansão antiga e todas as portas estão trancadas! Na Sala de Estar, um relógio muito velho está parado. Um bilhete diz que ele guarda o código da primeira porta.',
   objective: 'Leia a hora em que o relógio parou e digite 4 números: as HORAS (2 números) e depois os MINUTOS (2 números).',
   success: 'O relógio deu um "tin-tin-tin" e a gavetinha secreta se abriu com a chave da próxima sala!',
   hints: [
@@ -282,7 +282,7 @@ M.phase({
 M.phase({
   id: 6, title: 'Resposta Rápida', room: 'hall', transition: 'corridor', transitionText: 'Uma porta que faz tic-tac…', difficulty: 2, kind: 'Problemas e cronômetro', par: 150,
   intro: 'Uma porta com um relógio no meio faz "tic-tac" sem parar. Problemas de matemática aparecem na tela e um cronômetro vai contando o seu tempo. Sem pressão: quanto mais rápido e certeiro, mais pontos!',
-  objective: 'Resolva 6 problemas (contas, multiplicação, divisão e dinheiro). O cronômetro sobe enquanto você joga. Com 3 erros, uma velinha se apaga e você recomeça.',
+  objective: 'Resolva 6 problemas (contas, multiplicação, divisão e dinheiro). O cronômetro sobe enquanto você joga. Errou? O Fifi mostra como fazer e você segue em frente.',
   success: 'O relógio deu meia-noite: DOOOM! E a porta se abriu de uma vez.',
   hints: [
     'Leia com calma e ache os números. Depois pergunte: preciso JUNTAR, TIRAR, REPETIR ou REPARTIR? Não há limite de tempo por pergunta. Use as teclas 1 a 4 para responder.',
@@ -290,12 +290,12 @@ M.phase({
     rt => rt.cur ? `Passo a passo: ${rt.cur.sol}. A resposta é ${rt.cur.a}.` : 'Leia o problema com calma.'
   ],
   start(ctx) {
-    const NEED = 6, MAXERR = 3; let right = 0, errs = 0, qi = 0, cur = null, locked = false, shown = -1;
+    const NEED = 6; let right = 0, errs = 0, qi = 0, cur = null, locked = false, shown = -1;
     const bank = M.Banco.plano([['soma-sub', 4], ['mult-div', 4], ['dinheiro', 4]]);
     ctx.mount(`<div class="quiz panel"><div class="qstats"><span>Acertos: <b id="qR">0/${NEED}</b></span><span id="qE"></span></div>
       <div class="qtext" id="qT"></div><div class="opts" id="qO"></div></div>`);
     const qR = ctx.$('#qR'), qE = ctx.$('#qE'), qT = ctx.$('#qT'), qO = ctx.$('#qO');
-    const stats = () => { qR.textContent = `${right}/${NEED}`; qE.innerHTML = 'Erros: ' + [0, 1, 2].map(i => i < errs ? '<b>✖</b>' : '○').join(' '); };
+    const stats = () => { qR.textContent = `${right}/${NEED}`; qE.innerHTML = 'Erros: <b>' + errs + '</b>'; };
     function next() {
       locked = false; cur = ctx.rt.cur = bank[qi++ % bank.length]; stats();
       qT.innerHTML = fx(cur.q);
@@ -308,7 +308,6 @@ M.phase({
       if (a === cur.a) { right++; ctx.sfx('ok'); stats(); if (right >= NEED) { ctx.after(700, () => ctx.win()); return; } ctx.after(750, next); }
       else {
         if (btn) btn.classList.add('wrong'); errs++; ctx.mistake(0); ctx.say('Quase! Veja como fazer: ' + cur.sol, 6000); stats();
-        if (errs >= MAXERR) { const l = ctx.loseLife('Três erros! Uma velinha se apagou.'); if (l > 0) ctx.after(3000, () => { right = 0; errs = 0; next(); }); return; }
         ctx.after(3200, next);
       }
     }
@@ -319,12 +318,12 @@ M.phase({
 });
 
 /* =====================================================================
-   FASE 7 — O FANTASMA ASCENDENTE  (matemática: frações, média, várias etapas)
+   FASE 7 — O FANTASMA ASCENDENTE  (matemática: frações e várias etapas)
    ===================================================================== */
 M.phase({
   id: 7, title: 'O Fantasma Ascendente', room: 'stairs', transition: 'stairs', transitionText: 'Subindo as escadas…', difficulty: 2, kind: 'Problemas e pressão', par: 200,
   intro: 'Você sobe a grande escadaria e ouve um "uuuuuh". Dona Cantarola está subindo atrás de você, cantando desafinada! Se ela chegar ao topo da tela, ninguém aguenta a cantoria!',
-  objective: 'Resolva 8 problemas (frações, médias e problemas com mais de uma conta). Acertou? A fantasma recua. Errou? Ela sobe mais! Não deixe que chegue ao topo.',
+  objective: 'Resolva 8 problemas (frações e problemas com mais de uma conta). Acertou? A fantasma recua. Errou? Ela sobe mais! Não deixe que chegue ao topo.',
   success: 'A Dona Cantarola ficou tão feliz que aplaudiu — e sumiu num arco-íris de fumaça. O caminho está livre!',
   hints: [
     'Sem pressa para ler: a fantasma sobe devagar. Em problemas de várias etapas, resolva UMA conta de cada vez, na ordem da história.',
@@ -333,7 +332,7 @@ M.phase({
   ],
   start(ctx) {
     const NEED = 8; let right = 0, pct = .2, qi = 0, cur = null, locked = false, beat = 0;
-    const bank = M.Banco.plano([['fracoes', 3], ['media', 3], ['multietapas', 6]]);
+    const bank = M.Banco.plano([['fracoes', 5], ['multietapas', 7]]);
     ctx.mount(`<div class="p7" id="p7"><div class="topline">TOPO</div></div>
       <div class="p7host"><div class="quiz panel"><div class="qstats"><span>Acertos: <b id="qR">0/${NEED}</b></span><span class="tiny">Dona Cantarola está subindo…</span></div>
       <div class="qtext" id="qT"></div><div class="opts" id="qO"></div></div></div>`);

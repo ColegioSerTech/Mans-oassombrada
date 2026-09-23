@@ -9,8 +9,12 @@
 'use strict';
 
 /* ---------- utilidades ---------- */
-const TOTAL = 30;                       // fases planejadas
-const KEY = 'mansao-dos-espiritos-v1';
+/* Quais fases entram no jogo, e em que ordem (números originais dos arquivos de fase).
+   As que não estão na lista continuam no código, mas não aparecem. Para voltar uma, é só pôr o número aqui. */
+const ORDEM = [2, 6, 7, 9, 10, 11, 12, 14, 15, 16, 17, 18, 20, 22, 23];
+const TOTAL = ORDEM.length;              // fases do jogo principal (15)
+const EXTRAS = () => Math.max(0, PHASES.length - TOTAL);   // fases extras (arquivo extras.js, opcional)
+const KEY = 'mansao-dos-espiritos-v2';   // v2: jogo com 15 fases (o save antigo, de 23 fases, não é compatível)
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -29,6 +33,8 @@ const mmss = s => { s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) + '
 const defaults = () => ({
   version: 1,
   started: false,
+  skipped: [],                          // fases puladas (sem pontos)
+  extraStarted: false,                  // já entrou nas fases extras?
   currentPhase: 1,
   lives: 3,
   score: 0,
@@ -273,6 +279,9 @@ const ROOMS = {
   corridor: { name: 'Corredor Leste', back: '<div class="p-far-door"></div>', l: candles([[18, 40], [42, 40], [66, 40], [88, 40]]) + '<div class="p-frame f2" style="left:30%;top:14%"></div><div class="p-frame f2" style="left:54%;top:14%"></div>', r: candles([[28, 40], [52, 40], [76, 40]]) },
   study:    { name: 'Biblioteca', back: '<div class="p-shelf a"></div><div class="p-shelf b"></div><div class="p-window" style="width:12%"></div>', l: candles([[45, 44]]) + '<div class="p-shelf a" style="left:10%;width:60%;height:70%"></div>', r: candles([[45, 44]]) },
   ballroom: { name: 'Salão de Baile', back: '<div class="p-arch" style="left:14%"></div><div class="p-arch" style="left:45.5%"></div><div class="p-arch" style="right:14%"></div><div class="p-chand"></div>', l: candles([[24, 42], [56, 42], [84, 42]]), r: candles([[24, 42], [56, 42], [84, 42]]) },
+  cellar:   { name: 'Porão', back: '<div class="p-barrel" style="left:12%"></div><div class="p-barrel" style="left:24%"></div><div class="p-barrel" style="right:12%"></div><div class="p-far-door"></div>', l: candles([[40, 44]]), r: candles([[40, 44], [75, 44]]) },
+  attic:    { name: 'Sótão', back: '<div class="p-roundwin"></div><div class="p-chest"></div>', l: candles([[50, 46]]), r: candles([[30, 46]]) },
+  mirrors:  { name: 'Sala dos Espelhos', back: '<div class="p-mirror" style="left:10%"></div><div class="p-mirror" style="left:40%"></div><div class="p-mirror" style="right:10%"></div>', l: candles([[30, 42], [62, 42]]), r: candles([[30, 42], [62, 42]]) },
   stairs:   { name: 'Escadaria', back: '<div class="p-window" style="left:30%"></div><div class="p-frame f1"></div><div class="p-door" style="left:auto;right:12%"></div>', l: candles([[30, 40], [64, 40]]), r: candles([[30, 40], [64, 40]]) }
 };
 function setRoom(name) {
@@ -315,7 +324,7 @@ const Game = {
   /* ---------- HUD ---------- */
   updateHUD() {
     const p = this.phase || this.pending;
-    if (p) { $('#hudPhase').textContent = p.id; $('#hudTitle').textContent = p.title; }
+    if (p) { const ex = p.id > TOTAL; $('#hudLabel').textContent = ex ? 'EXTRA' : 'FASE'; $('#hudPhase').textContent = ex ? p.id - TOTAL : p.id; $('#hudTitle').textContent = p.title; $('#hudTotal').textContent = '/' + (ex ? EXTRAS() : TOTAL); }
     $('#hudScore').textContent = fmt(gameState.score);
     $('#hudLives').innerHTML = [0, 1, 2].map(i => `<i class="${i < gameState.lives ? '' : 'off'}"></i>`).join('');
   },
@@ -330,14 +339,14 @@ const Game = {
 
   openPhase(id) {
     const p = PHASES[id - 1];
-    if (!p) { this.showEnding(); return; }
+    if (!p || (id > TOTAL && !gameState.extraStarted)) { this.showEnding(); return; }   // depois da fase 23 vem o final; as extras são opcionais
     gameState.currentPhase = id; gameState.started = true;
-    if ((id - 1) % 5 === 0) { gameState.checkpoint = { phase: id, score: gameState.score }; gameState.lives = 3; }
+    if ((id - 1) % 5 === 0 || p.checkpoint) { gameState.checkpoint = { phase: id, score: gameState.score }; gameState.lives = 3; }
     save();
     this.pending = p; this.hintState = [null, null, null]; this.active = false; this.phase = null;
     $('#hud').hidden = true;
     const dl = ['', 'Fácil', 'Médio', 'Difícil'][p.difficulty];
-    $('#introKicker').textContent = `Fase ${p.id} de ${TOTAL} · ${(ROOMS[p.room] || ROOMS.hall).name}`;
+    $('#introKicker').textContent = `${p.id > TOTAL ? `Fase extra ${p.id - TOTAL} de ${EXTRAS()}` : `Fase ${p.id} de ${TOTAL}`} · ${(ROOMS[p.room] || ROOMS.hall).name}`;
     $('#introTitle').textContent = p.title; $('#introText').textContent = p.intro; $('#introObj').textContent = p.objective;
     $('#introDiff').textContent = dl; $('#introDiff').className = 'tag d' + p.difficulty; $('#introType').textContent = p.kind || '';
     $('#introType').hidden = !p.kind;
@@ -351,7 +360,7 @@ const Game = {
     this.phase = p; this.ctx = makeCtx(p); this.active = true; this.hintState = [null, null, null]; this.setTimer(null);
     this.updateHUD(); this.syncPause(); this.placeSecret(p); $('#btnHint').classList.remove('pulse');
     Clock.after(75000, () => $('#btnHint').classList.add('pulse'), this.ctx);
-    try { p.start(this.ctx); } catch (e) { console.error(e); toast('Ops, algo deu errado nesta fase. Tente reiniciar.'); }
+    try { p.start(this.ctx); } catch (e) { console.error(e); toast('Ops, algo deu errado nesta fase. Você pode pular ela no menu.', 5000); $('#pSkip').hidden = false; showScreen('pause'); }
   },
   clearStage() { $('#stage').innerHTML = ''; $$('.secret-eye').forEach(e => e.remove()); $('#ghostlayer').innerHTML = ''; $('#whisper').classList.remove('on'); this.setTimer(null); },
   restartPhase() {
@@ -369,7 +378,19 @@ const Game = {
     ['pause', 'gameover', 'complete', 'hints', 'settings', 'howto', 'intro', 'ending'].forEach(hideScreen);
     this.clearStage(); $('#hud').hidden = true; setRoom('hall'); save(); this.refreshMenu(); showScreen('title'); this.syncPause();
   },
-  refreshMenu() { const c = $('#mContinue'); c.disabled = !gameState.started; c.textContent = gameState.started ? `Continuar (fase ${gameState.currentPhase})` : 'Continuar'; },
+  refreshMenu() {
+    const c = $('#mContinue'), cp = gameState.currentPhase, mainDone = this.mainDone(), ex = $('#mExtras');
+    c.disabled = !gameState.started;
+    c.textContent = !gameState.started ? 'Continuar' : cp > TOTAL ? (gameState.extraStarted && PHASES[cp - 1] ? `Continuar (extra ${cp - TOTAL})` : 'Ver o final') : `Continuar (fase ${cp})`;
+    ex.hidden = PHASES.length <= TOTAL;                 // só aparece se o arquivo extras.js estiver no site
+    ex.disabled = !mainDone; ex.textContent = mainDone ? 'Fases extras ⭐' : 'Fases extras 🔒'; ex.title = mainDone ? '' : `Termine as ${TOTAL} fases para liberar`;
+  },
+  mainDone() { return gameState.completedPhases.filter(x => x <= TOTAL).length >= TOTAL; },
+  startExtras() {
+    if (!this.mainDone() || PHASES.length <= TOTAL) return;
+    gameState.extraStarted = true; if (gameState.currentPhase <= TOTAL || !PHASES[gameState.currentPhase - 1]) gameState.currentPhase = TOTAL + 1; save();
+    ['ending', 'title'].forEach(hideScreen); this.openPhase(gameState.currentPhase);
+  },
 
   /* ---------- erros, vidas, pontos ---------- */
   onMistake(ctx) {
@@ -377,7 +398,14 @@ const Game = {
     if (!gameState.settings.reduceFx) { const g = $('#game'); g.classList.remove('shake'); void g.offsetWidth; g.classList.add('shake'); setTimeout(() => g.classList.remove('shake'), 400); }
     if (this.sessionMistakes % 3 === 0) Ghosts.watch();
   },
+  /* O jogo NÃO tem mais vidas: um "castigo" só mostra o aviso, treme a tela e conta como erro (menos pontos). */
   loseLife(ctx, msg) {
+    if (!this.active || ctx.done) return 1;
+    const h = $('#fx-hurt'); h.classList.remove('on'); void h.offsetWidth; h.classList.add('on');
+    Snd.play('err'); if (msg) whisper(msg);
+    return 1;
+  },
+  _oldLoseLife(ctx, msg) {
     if (!this.active || ctx.done) return gameState.lives;
     gameState.lives = Math.max(0, gameState.lives - 1); save(); this.updateHUD();
     const l = $$('#hudLives i')[gameState.lives]; if (l) l.classList.add('lost');
@@ -392,12 +420,11 @@ const Game = {
   },
   completePhase(ctx, o = {}) {
     const p = ctx.phase, elapsed = ctx.elapsed();
-    const base = 100 * p.difficulty, tb = p.par ? clamp(Math.round(100 * (1 - elapsed / p.par)), 0, 100) : 0, lv = gameState.lives * 10;
+    const base = 100 * p.difficulty, tb = p.par ? clamp(Math.round(100 * (1 - elapsed / p.par)), 0, 100) : 0, lv = 0;   // sem vidas
     const perfect = ctx.mistakes === 0 ? 50 : 0, extra = o.bonus || 0, pen = ctx.mistakes * 10;
     const total = Math.max(0, base + tb + lv + perfect + extra - pen);
-    gameState.score += total; if (!gameState.completedPhases.includes(p.id)) gameState.completedPhases.push(p.id);
+    gameState.score += total; if (!gameState.completedPhases.includes(p.id)) gameState.completedPhases.push(p.id); gameState.skipped = gameState.skipped.filter(x => x !== p.id);   // jogou de verdade: deixa de ser "pulada"
     if (perfect) gameState.stats.perfect++;
-    gameState.lives = Math.min(3, gameState.lives + 1);
     gameState.currentPhase = p.id + 1; save();
     this.active = false; ctx._dispose(); this.syncPause(); this.updateHUD(); this.setTimer(null);
     Snd.play('done'); const g = $('#game'); g.classList.add('victory'); setTimeout(() => g.classList.remove('victory'), 1000);
@@ -405,16 +432,33 @@ const Game = {
     if (tb) rows.push(['Bônus de rapidez', tb]); if (lv) rows.push(['Velinhas restantes', lv]); if (perfect) rows.push(['Sem erros!', perfect]); if (extra) rows.push([o.bonusLabel || 'Bônus especial', extra]);
     $('#cTable').innerHTML = rows.map(r => `<tr><td>${r[0]}</td><td>+${r[1]}</td></tr>`).join('') + (pen ? `<tr class="neg"><td>Erros (${ctx.mistakes})</td><td>−${Math.min(pen, base + tb + lv + perfect + extra)}</td></tr>` : '') + `<tr class="tot"><td>Total da fase</td><td>${fmt(total)}</td></tr>`;
     $('#cTitle').textContent = p.title; $('#cMsg').textContent = o.message || p.success || 'Você abriu o caminho!';
-    const last = !PHASES[p.id]; $('#cNext').textContent = last ? 'Continuar' : 'Próxima fase';
+    const last = p.id === TOTAL || !PHASES[p.id]; $('#cNext').textContent = last ? 'Continuar' : 'Próxima fase';
     setTimeout(() => showScreen('complete'), 1100);
   },
   nextPhase() { hideScreen('complete'); Snd.play('click'); this.openPhase(gameState.currentPhase); },
   showEnding() {
-    const done = PHASES.length >= TOTAL, s = gameState;
-    $('#endKicker').textContent = done ? 'Fim' : 'Fim desta etapa';
-    $('#endTitle').textContent = done ? 'Você escapou!' : 'A mansão ainda guarda segredos…';
-    $('#endText').textContent = done ? '' : `Você abriu ${s.completedPhases.length} portas! As próximas salas estão sendo preparadas. Seu progresso está salvo — em breve você poderá continuar daqui.`;
-    $('#endTable').innerHTML = `<tr><td>Portas abertas</td><td>${s.completedPhases.length} / ${TOTAL}</td></tr><tr><td>Olhinhos secretos</td><td>${s.secrets.length}</td></tr><tr><td>Dicas usadas</td><td>${s.hintsUsed}</td></tr><tr class="tot"><td>Pontuação</td><td>${fmt(s.score)}</td></tr>`;
+    const s = gameState, mainDone = this.mainDone(), nEx = EXTRAS(), exDone = nEx > 0 && s.completedPhases.filter(x => x > TOTAL).length >= nEx;
+    const eyes = s.secrets.filter(x => x <= TOTAL).length;
+    /* três finais, conforme o desempenho:  secreto (achou muitos olhinhos) · fuga (poucos erros e dicas) · misterioso */
+    const secret = eyes >= 8, best = s.stats.mistakes <= 18 && s.hintsUsed <= 4;   // limites para 15 fases
+    const F = exDone
+      ? ['Final Extra', 'Mestre da Mansão!', 'Você completou TODAS as fases, até as extras! Os fantasminhas fizeram a maior festa que a mansão já viu, e o Barão prometeu que você sempre será bem-vindo. Parabéns, campeão da matemática!']
+      : secret
+        ? ['Final Secreto', 'Os fantasminhas fizeram uma festa!', 'Você achou tantos olhinhos escondidos que os fantasminhas prepararam uma festa surpresa só para você! Teve bolo de abóbora, balões e muita música. Agora você faz parte da turma da Mansão dos Espíritos!']
+        : best
+          ? ['Final da Fuga', 'Você escapou da mansão!', 'O grande portão se abriu e a luz da manhã entrou. Lá de dentro, os fantasminhas acenaram: "Volte para brincar!" Você resolveu quase tudo sem errar e sem muita ajuda. Que craque da matemática!']
+          : ['Final Misterioso', 'A porta se abriu… e agora?', 'Você saiu da mansão, mas ouviu uma risadinha lá atrás. Quando olhou, só viu a lua e uma cartola flutuando… O Barão ainda guarda muitos segredos. Será que existem olhinhos escondidos que você ainda não achou?'];
+    if (mainDone) Snd.play('done');
+    const mainCount = s.completedPhases.filter(x => x <= TOTAL).length;
+    $('#endKicker').textContent = mainDone ? F[0] : 'Faltam portas';
+    $('#endTitle').textContent = mainDone ? F[1] : 'Ainda há portas para abrir';
+    $('#endText').textContent = mainDone ? F[2] : `Você abriu ${mainCount} de ${TOTAL} portas. Volte ao menu e continue de onde parou!`;
+    let rows = `<tr><td>Portas abertas</td><td>${mainCount} / ${TOTAL}</td></tr>`;
+    if (nEx) rows += `<tr><td>Fases extras</td><td>${s.completedPhases.filter(x => x > TOTAL).length} / ${nEx}</td></tr>`;
+    if (s.skipped.length) rows += `<tr><td>Fases puladas</td><td>${s.skipped.length}</td></tr>`;
+    rows += `<tr><td>Olhinhos secretos</td><td>${eyes} / ${TOTAL}</td></tr><tr><td>Dicas usadas</td><td>${s.hintsUsed}</td></tr><tr><td>Erros</td><td>${s.stats.mistakes}</td></tr><tr class="tot"><td>Pontuação final</td><td>${fmt(s.score)}</td></tr>`;
+    $('#endTable').innerHTML = rows;
+    const be = $('#endExtras'); be.hidden = !(nEx && mainDone && !exDone); be.textContent = s.extraStarted ? 'Continuar as fases extras ⭐' : 'Jogar as 10 fases extras ⭐'.replace('10', nEx);
     $('#hud').hidden = true; hideScreen('title'); showScreen('ending');
   },
 
@@ -444,7 +488,42 @@ const Game = {
     });
     showScreen('hints'); Snd.play('click');
   },
-  togglePause() { if (!this.active) return; if (open.has('pause')) hideScreen('pause'); else { showScreen('pause'); Snd.play('click'); } }
+  /** Pula a fase atual (quando ela trava ou dá problema). Conta como concluída, mas sem pontos. */
+  skipPhase() {
+    const p = this.phase || this.pending; if (!p) return;
+    this.leavePhase();
+    if (!gameState.completedPhases.includes(p.id)) gameState.completedPhases.push(p.id);
+    if (!gameState.skipped.includes(p.id)) gameState.skipped.push(p.id);
+    gameState.currentPhase = p.id + 1; save();
+    toast('Fase pulada! (aperte R para voltar)', 2800); Snd.play('door');
+    this.openPhase(gameState.currentPhase);
+  },
+  /** volta para a fase anterior (tecla R) */
+  previousPhase() {
+    const p = this.phase || this.pending; if (!p) return;
+    if (p.id <= 1) { toast('Esta já é a primeira fase.', 2200); return; }
+    this.leavePhase(); toast('Voltando para a fase ' + (p.id - 1) + '…', 2200); Snd.play('door');
+    this.openPhase(p.id - 1);
+  },
+  /** encerra a fase atual (timers, telas e cena) sem mexer no progresso */
+  leavePhase() {
+    if (this.ctx) this.ctx._dispose();
+    ['pause', 'intro', 'complete', 'gameover', 'hints'].forEach(hideScreen);
+    this.active = false; this.syncPause(); this.setTimer(null); this.clearStage(); this.phase = null;
+  },
+  /** atalhos de teclado: P = pular · R = voltar */
+  hotkey(k) {
+    if (['confirm', 'settings', 'howto', 'hints', 'pause', 'title', 'ending'].some(id => open.has(id))) return;
+    if (!(this.phase || this.pending)) return;
+    if (k === 'p') { if (open.has('complete')) this.nextPhase(); else this.skipPhase(); } else this.previousPhase();
+  },
+  togglePause() {
+    if (open.has('pause')) { hideScreen('pause'); return; }
+    const inFlow = ['intro', 'complete', 'gameover'].some(id => open.has(id));      // telas entre uma fase e outra
+    if (!this.active && !inFlow) return;
+    $('#pSkip').hidden = !this.active;                                                // só dá para pular uma fase que está rodando
+    showScreen('pause'); Snd.play('click');
+  }
 };
 
 /* ---------- contexto entregue a cada fase ---------- */
@@ -463,14 +542,15 @@ function makeCtx(p) {
     ghost: Ghosts,
     shake(node) { if (!node) return; node.classList.remove('shake-el'); void node.offsetWidth; node.classList.add('shake-el'); },
     flash() { if (gameState.settings.reduceFx) return; const f = $('#fx-flash'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on'); },
-    /** registra um erro. every=N → a cada N erros na fase, uma velinha se apaga. Retorna true se perdeu vida. */
+    /** registra um erro (cada erro tira 10 pontos no fim da fase). O jogo não tem vidas. */
     mistake(every = 0, msg) {
       if (ctx.done || !Game.active) return false;
       ctx.mistakes++; Snd.play('err'); Game.onMistake(ctx);
-      if (every && ctx.mistakes % every === 0) { Game.loseLife(ctx, msg || 'Uma velinha se apagou…'); return true; }
       if (msg) whisper(msg); return false;
     },
     loseLife: msg => Game.loseLife(ctx, msg),
+    /** gasta pontos (ex.: pedir para ver de novo). Nunca deixa a pontuação negativa. */
+    spend(p) { gameState.score = Math.max(0, gameState.score - p); save(); Game.updateHUD(); },
     win(o) { if (ctx.done || !Game.active) return; ctx.done = true; Game.completePhase(ctx, o); },
     _dispose() { Clock.clearOwner(ctx); offs.forEach(f => f()); offs.length = 0; ctx.done = true; }
   };
@@ -485,6 +565,8 @@ function applySettings() {
   $('#sVol').value = s.volume; $('#sAmb').value = s.ambient; $('#sSfx').value = s.sfx; $('#sFx').checked = !!s.reduceFx;
 }
 function boot() {
+  /* monta a lista de fases na ordem escolhida e renumera 1, 2, 3… */
+  PHASES.length = 0; ORDEM.forEach((orig, i) => { const d = REGISTRO[orig]; if (d) { d.orig = orig; d.id = i + 1; PHASES.push(d); } });
   load(); setRoom('hall'); applySettings(); Game.refreshMenu();
   // poeirinha flutuando
   $('#dust').innerHTML = Array.from({ length: 28 }, () => `<i style="left:${rnd(0, 100)}%;top:${rnd(20, 100)}%;animation-duration:${rnd(9, 20)}s;animation-delay:${rnd(0, 12)}s;width:${ri(2, 4)}px;height:${ri(2, 4)}px"></i>`).join('');
@@ -506,9 +588,9 @@ function boot() {
   on('sClose', () => { save(); hideScreen('settings'); }); on('hwClose', () => hideScreen('howto')); on('hClose', () => hideScreen('hints'));
   on('introGo', () => Game.enterPhase()); on('cNext', () => Game.nextPhase());
   on('goRetry', () => Game.restartPhase()); on('goCheck', () => Game.toCheckpoint()); on('goMenu', () => { hideScreen('gameover'); Game.toMenu(); });
-  on('pResume', () => hideScreen('pause')); on('pCfg', () => showScreen('settings')); on('pHow', () => showScreen('howto')); on('pMenu', () => askConfirm('Sair para o menu? Seu progresso das fases concluídas está salvo.', () => { hideScreen('pause'); Game.toMenu(); }));
+  on('pResume', () => hideScreen('pause')); on('pCfg', () => showScreen('settings')); on('pHow', () => showScreen('howto')); on('pBack', () => Game.previousPhase()); on('pSkip', () => askConfirm('Pular esta fase? Ela conta como concluída, mas você não ganha pontos nela. Use só se a fase travou ou deu erro.', () => Game.skipPhase())); on('pMenu', () => askConfirm('Sair para o menu? Seu progresso das fases concluídas está salvo.', () => { hideScreen('pause'); Game.toMenu(); }));
   on('btnPause', () => Game.togglePause()); on('btnHint', () => Game.openHints()); on('btnCfg', () => showScreen('settings'));
-  on('endMenu', () => { hideScreen('ending'); Game.toMenu(); });
+  on('endMenu', () => { hideScreen('ending'); Game.toMenu(); }); on('endExtras', () => Game.startExtras()); on('mExtras', () => Game.startExtras());
   on('sReset', () => askConfirm('Apagar todo o seu progresso? Isso não pode ser desfeito.', () => { resetProgress(); applySettings(); Game.refreshMenu(); toast('Progresso apagado.'); }));
   $('#sVol').oninput = e => { gameState.settings.volume = +e.target.value; Snd.apply(); };
   $('#sAmb').oninput = e => { gameState.settings.ambient = +e.target.value; Snd.apply(); };
@@ -519,7 +601,8 @@ function boot() {
     if (e.key === 'Escape') {
       const top = ['confirm', 'settings', 'howto', 'hints'].find(id => open.has(id));
       if (top) hideScreen(top); else Game.togglePause();
-    } else if ((e.key === 'h' || e.key === 'H') && Game.active && ![...open].some(id => BLOCKING.has(id)) && !/INPUT|TEXTAREA/.test((document.activeElement || {}).tagName || '')) Game.openHints();
+    } else if (/^[pPrR]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey && !/INPUT|TEXTAREA/.test((document.activeElement || {}).tagName || '')) Game.hotkey(e.key.toLowerCase());
+    else if ((e.key === 'h' || e.key === 'H') && Game.active && ![...open].some(id => BLOCKING.has(id)) && !/INPUT|TEXTAREA/.test((document.activeElement || {}).tagName || '')) Game.openHints();
   });
   document.addEventListener('visibilitychange', () => Game.syncPause());
   addEventListener('beforeunload', save);
@@ -527,9 +610,10 @@ function boot() {
   Clock.start(); Game.syncPause(); showScreen('title');
   // atalho para testes: index.html?fase=5
   const q = new URLSearchParams(location.search).get('fase');
-  if (q && PHASES[+q - 1]) { if (!gameState.started) { gameState.started = true; } hideScreen('title'); Game.openPhase(+q); }
+  if (q && PHASES[+q - 1]) { if (!gameState.started) { gameState.started = true; } if (+q > TOTAL) gameState.extraStarted = true; hideScreen('title'); Game.openPhase(+q); }
 }
 
-window.Mansao = { phase: def => { PHASES[def.id - 1] = def; }, boot, Game, Snd, Ghosts, clock: Clock, GHOST_TYPES, icon, ICON_NAMES, gameState: () => gameState, PHASES, ROOMS,
+const REGISTRO = {};
+window.Mansao = { phase: def => { REGISTRO[def.id] = def; }, boot, Game, Snd, Ghosts, clock: Clock, GHOST_TYPES, icon, ICON_NAMES, gameState: () => gameState, PHASES, ROOMS,
   util: { rnd, ri, pick, shuffle, clamp, cap, el, fmt, mmss, $, $$ } };
 })();

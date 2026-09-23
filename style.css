@@ -190,7 +190,7 @@ button,input{font-family:inherit;color:inherit}
 .btn:active:not(:disabled){transform:translateY(2px);box-shadow:none}
 .btn:disabled{opacity:.35;cursor:not-allowed}
 .btn.primary{background:linear-gradient(#ff9a3d,#d4611d);border-color:#ffcf8a;color:#20100a;font-weight:bold;box-shadow:0 3px 0 #7a350f}
-.btn.ghost{background:transparent;box-shadow:none;color:var(--ink2)}
+.btn.plain{background:transparent;box-shadow:none;color:var(--ink2)}   /* antes se chamava .ghost, mas colidia com a classe dos fantasminhas (pointer-events:none) */
 .btn.sm{padding:.5em .9em;font-size:13px}
 .score-table{width:100%;border-collapse:collapse;margin:12px 0;font-size:15px}
 .score-table td{padding:5px 8px;border-bottom:1px solid rgba(183,156,255,.15);text-align:left}
